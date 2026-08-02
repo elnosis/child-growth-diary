@@ -1,6 +1,6 @@
 {
-  "name": "닌텐도를 위하여",
-  "short_name": "성장기록",
+  "name": "아이 성장 & BMI 다이어리",
+  "short_name": "닌텐도를 위하여",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F9FAFB",
