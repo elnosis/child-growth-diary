@@ -2,179 +2,634 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>성장 기록</title>
-  
-  <!-- PWA Manifest & Theme -->
-  <link rel="manifest" href="./manifest.json">
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#4F46E5">
-  <link rel="apple-touch-icon" href="./icon-192.png">
-
-  <!-- Chart.js CDN (차트 라이브러리) -->
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <!-- PapaParse CDN (CSV Import/Export 용) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
       background-color: #F9FAFB;
-      color: #111827;
-      padding: 16px;
-      max-width: 600px;
-      margin: 0 auto;
     }
-
-    header {
-      margin-bottom: 24px;
-      text-align: center;
-    }
-
-    h1 {
-      font-size: 1.5rem;
+    .active-tab {
       color: #4F46E5;
+      border-bottom: 3px solid #4F46E5;
+      font-weight: 700;
     }
-
-    .card {
-      background: #FFFFFF;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    /* 
-      [중요] 차트가 첫 화면에서 사라지거나 깨지는 것을 방지하기 위해
-      canvas 부모 컨테이너에 명시적인 height 및 position: relative 부여
-    */
     .chart-container {
       position: relative;
       width: 100%;
-      height: 300px; 
+      height: 340px;
     }
   </style>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
 
-  <header>
-    <h1>성장 기록</h1>
+  <!-- Header -->
+  <header class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-50">
+    <div class="max-w-md mx-auto flex justify-between items-center relative">
+      <h1 class="text-xl font-bold flex items-center gap-2">
+        <i class="fa-solid fa-chart-line"></i> 아이 성장 & BMI 다이어리
+      </h1>
+      
+      <div class="flex items-center gap-2">
+        <button onclick="toggleProfileModal()" class="text-xs bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-full flex items-center gap-1 border border-indigo-400">
+          <i class="fa-solid fa-user-gear"></i> <span id="profileSummary">프로필 설정</span>
+        </button>
+
+        <!-- 우상단 메뉴 버튼 -->
+        <div class="relative">
+          <button onclick="toggleMenuModal(event)" class="text-xs bg-indigo-700 hover:bg-indigo-800 p-2 rounded-full flex items-center justify-center border border-indigo-400 w-8 h-8">
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+          
+          <!-- 우상단 드롭다운 메뉴 -->
+          <div id="dropdownMenu" class="hidden absolute right-0 top-10 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-100 w-48 py-1 z-50 text-xs">
+            <button onclick="exportUserCsv()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100">
+              <i class="fa-solid fa-file-export text-indigo-500"></i> 내 기록 Export (CSV)
+            </button>
+            <button onclick="document.getElementById('userCsvInput').click()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100">
+              <i class="fa-solid fa-file-import text-indigo-500"></i> 내 기록 Import (CSV)
+            </button>
+            <button onclick="document.getElementById('kdcaCsvInput').click()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2">
+              <i class="fa-solid fa-building-columns text-indigo-500"></i> 질병청 데이터 Import
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <!-- 프로필 영역 -->
-    <section class="card" id="profile-section">
-      <h2>아이 프로필</h2>
-      <div id="profile-ui">
-        <!-- updateProfileUI()로 동적 렌더링 -->
-      </div>
-    </section>
+  <!-- Hidden File Inputs for CSV Import -->
+  <input type="file" id="userCsvInput" accept=".csv" class="hidden" onchange="importUserCsv(event)">
+  <input type="file" id="kdcaCsvInput" accept=".csv" class="hidden" onchange="importKdcaCsv(event)">
 
-    <!-- 차트 영역 -->
-    <section class="card">
-      <h2>성장 및 BMI 추이</h2>
+  <main class="max-w-md mx-auto p-4 space-y-6">
+
+    <!-- Profile Card -->
+    <div id="profileCard" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+      <div>
+        <p class="text-xs text-slate-400 font-medium">등록된 자녀 정보</p>
+        <p class="text-base font-bold text-slate-800" id="displayChildInfo">프로필을 불러오는 중...</p>
+      </div>
+      <button onclick="toggleProfileModal()" class="text-indigo-600 text-xs font-semibold hover:underline">수정</button>
+    </div>
+
+    <!-- Data Input Form -->
+    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+      <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-pen-to-square text-indigo-500"></i> 기록 추가하기
+      </h2>
+      <form id="recordForm" onsubmit="saveRecord(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">측정 날짜</label>
+          <input type="date" id="recordDate" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">키 (cm)</label>
+            <input type="number" step="0.1" id="recordHeight" placeholder="130.5" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">체중 (kg)</label>
+            <input type="number" step="0.1" id="recordWeight" placeholder="28.4" required class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition duration-200 shadow-md shadow-indigo-100 flex justify-center items-center gap-2">
+          <i class="fa-solid fa-plus"></i> BMI 계산 및 기록 저장
+        </button>
+      </form>
+    </div>
+
+    <!-- Chart Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-4">
+      <div class="flex border-b border-slate-100 justify-around text-sm font-semibold text-slate-400">
+        <button onclick="switchTab('height')" id="tab-height" class="pb-2 px-4 active-tab transition-all">키 (cm)</button>
+        <button onclick="switchTab('weight')" id="tab-weight" class="pb-2 px-4 transition-all">체중 (kg)</button>
+        <button onclick="switchTab('bmi')" id="tab-bmi" class="pb-2 px-4 transition-all">BMI</button>
+      </div>
+
+      <!-- Chart Canvas -->
       <div class="chart-container">
         <canvas id="growthChart"></canvas>
       </div>
-    </section>
+      
+      <div class="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600">
+        <p class="font-bold flex items-center gap-1 text-indigo-600">
+          <i class="fa-solid fa-circle-info"></i> 질병관리청 성장기준선 안내
+        </p>
+        <div class="grid grid-cols-3 gap-1 pt-1 text-center font-medium">
+          <span class="text-red-500 bg-red-50 py-1 rounded">🔴 상위 3% (97th)</span>
+          <span class="text-slate-600 bg-slate-200 py-1 rounded">⚪ 평균 50% (50th)</span>
+          <span class="text-amber-600 bg-amber-50 py-1 rounded">🟡 하위 3% (3rd)</span>
+        </div>
+      </div>
+    </div>
 
-    <!-- 기록 내역 영역 -->
-    <section class="card">
-      <h2>기록 히스토리</h2>
-      <ul id="history-list">
-        <!-- renderHistory()로 동적 렌더링 -->
-      </ul>
-    </section>
+    <!-- History List Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-indigo-500"></i> 측정 기록 목록
+        </h3>
+        <span id="recordCount" class="text-xs text-slate-400">총 0개</span>
+      </div>
+      <div id="historyList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+    </div>
+
   </main>
 
+  <!-- Profile Modal -->
+  <div id="profileModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden z-50 flex justify-center items-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl space-y-4">
+      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <i class="fa-solid fa-child text-indigo-600"></i> 자녀 정보 설정
+      </h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">성별</label>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name="gender" value="남" checked class="text-indigo-600 focus:ring-indigo-500"> 남아
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name="gender" value="여" class="text-indigo-600 focus:ring-indigo-500"> 여아
+            </label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">생년월일</label>
+          <input type="date" id="birthDate" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="toggleProfileModal()" class="w-1/2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold text-xs">취소</button>
+        <button onclick="saveProfile()" class="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs">저장</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    let myChart = null;
+    // 질병관리청 소아청소년 성장도표 기본값 (만 6세~12세)
+    let stdData = {
+      '남': {
+        6:  { height: { low: 110.1, avg: 117.7, high: 125.1 }, weight: { low: 18.7, avg: 22.3, high: 28.1 }, bmi: { low: 13.5, avg: 15.9, high: 19.2 } },
+        7:  { height: { low: 115.3, avg: 123.3, high: 131.2 }, weight: { low: 20.6, avg: 25.0, high: 32.8 }, bmi: { low: 13.6, avg: 16.2, high: 20.0 } },
+        8:  { height: { low: 120.3, avg: 128.8, high: 137.2 }, weight: { low: 22.7, avg: 28.2, high: 38.6 }, bmi: { low: 13.8, avg: 16.8, high: 21.0 } },
+        9:  { height: { low: 125.1, avg: 134.1, high: 143.2 }, weight: { low: 25.1, avg: 32.1, high: 45.4 }, bmi: { low: 14.1, avg: 17.6, high: 22.3 } },
+        10: { height: { low: 129.8, avg: 139.5, high: 149.5 }, weight: { low: 27.8, avg: 36.8, high: 52.8 }, bmi: { low: 14.5, avg: 18.6, high: 23.7 } },
+        11: { height: { low: 134.7, avg: 145.3, high: 156.4 }, weight: { low: 31.0, avg: 42.2, high: 60.0 }, bmi: { low: 15.0, avg: 19.6, high: 25.0 } },
+        12: { height: { low: 140.3, avg: 151.8, high: 163.8 }, weight: { low: 34.8, avg: 48.0, high: 66.8 }, bmi: { low: 15.6, avg: 20.5, high: 26.1 } }
+      },
+      '여': {
+        6:  { height: { low: 109.1, avg: 116.6, high: 124.0 }, weight: { low: 18.0, avg: 21.6, high: 27.2 }, bmi: { low: 13.2, avg: 15.7, high: 18.8 } },
+        7:  { height: { low: 114.4, avg: 122.3, high: 130.1 }, weight: { low: 19.8, avg: 24.1, high: 31.5 }, bmi: { low: 13.4, avg: 15.9, high: 19.5 } },
+        8:  { height: { low: 119.5, avg: 128.0, high: 136.4 }, weight: { low: 21.9, avg: 27.2, high: 37.0 }, bmi: { low: 13.6, avg: 16.3, high: 20.5 } },
+        9:  { height: { low: 124.8, avg: 133.8, high: 143.1 }, weight: { low: 24.3, avg: 31.0, high: 43.6 }, bmi: { low: 14.0, avg: 17.0, high: 21.7 } },
+        10: { height: { low: 130.5, avg: 140.2, high: 150.5 }, weight: { low: 27.2, avg: 35.7, high: 50.7 }, bmi: { low: 14.5, avg: 17.8, high: 22.9 } },
+        11: { height: { low: 136.9, avg: 147.2, high: 157.9 }, weight: { low: 30.9, avg: 41.0, high: 57.1 }, bmi: { low: 15.1, avg: 18.7, high: 24.0 } },
+        12: { height: { low: 143.4, avg: 153.6, high: 163.6 }, weight: { low: 35.3, avg: 46.2, high: 62.4 }, bmi: { low: 15.8, avg: 19.3, high: 24.9 } }
+      }
+    };
 
-    // 1. 프로필 UI 업데이트
+    // 커스텀 질병청 데이터가 있으면 로드
+    const customKdca = localStorage.getItem('customKdcaData');
+    if (customKdca) {
+      try { stdData = JSON.parse(customKdca); } catch(e){}
+    }
+
+    let currentTab = 'height';
+    let chart = null;
+
+    document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
+
+    // 우상단 메뉴 토글
+    function toggleMenuModal(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('dropdownMenu');
+      menu.classList.toggle('hidden');
+    }
+    document.addEventListener('click', () => {
+      document.getElementById('dropdownMenu').classList.add('hidden');
+    });
+
+    // 1. 내 기록 Export (CSV)
+    function exportUserCsv() {
+      const records = getRecords();
+      if (records.length === 0) {
+        alert('내보낼 데이터가 없습니다.');
+        return;
+      }
+      const csvData = records.map(r => ({
+        date: r.date,
+        height_cm: r.height,
+        weight_kg: r.weight,
+        bmi: r.bmi
+      }));
+      const csvString = Papa.unparse(csvData);
+      const blob = new Blob(["\ufeff" + csvString], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", `growth_records_${new Date().toISOString().substring(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 2. 내 기록 Import (CSV)
+    function importUserCsv(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          const records = getRecords();
+          const recordMap = new Map(records.map(r => [r.date, r]));
+
+          results.data.forEach(row => {
+            const date = String(row.date || row.Date || '').trim();
+            const height = parseFloat(row.height_cm || row.height || row.Height);
+            const weight = parseFloat(row.weight_kg || row.weight || row.Weight);
+
+            if (date && (!isNaN(height) || !isNaN(weight))) {
+              const prev = recordMap.get(date) || {};
+              const h = !isNaN(height) ? height : prev.height;
+              const w = !isNaN(weight) ? weight : prev.weight;
+              
+              let bmi = row.bmi ? parseFloat(row.bmi) : null;
+              if ((!bmi || isNaN(bmi)) && h && w) {
+                const heightM = h / 100;
+                bmi = parseFloat((w / (heightM * heightM)).toFixed(1));
+              }
+
+              recordMap.set(date, { date, height: h, weight: w, bmi: bmi || prev.bmi });
+            }
+          });
+
+          const updated = Array.from(recordMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+          localStorage.setItem('growthRecords', JSON.stringify(updated));
+          alert('기록이 성공적으로 추가/갱신되었습니다.');
+          e.target.value = '';
+          renderAll();
+        }
+      });
+    }
+
+    // 3. 질병청 데이터 Import (CSV)
+    function importKdcaCsv(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+        complete: function(results) {
+          try {
+            results.data.forEach(row => {
+              const gender = String(row.gender || row.Gender || '남').trim();
+              const age = parseInt(row.age || row.Age);
+
+              if (gender && !isNaN(age)) {
+                if (!stdData[gender]) stdData[gender] = {};
+                if (!stdData[gender][age]) stdData[gender][age] = { height: {}, weight: {}, bmi: {} };
+
+                if (row.h_low != null) stdData[gender][age].height.low = parseFloat(row.h_low);
+                if (row.h_avg != null) stdData[gender][age].height.avg = parseFloat(row.h_avg);
+                if (row.h_high != null) stdData[gender][age].height.high = parseFloat(row.h_high);
+
+                if (row.w_low != null) stdData[gender][age].weight.low = parseFloat(row.w_low);
+                if (row.w_avg != null) stdData[gender][age].weight.avg = parseFloat(row.w_avg);
+                if (row.w_high != null) stdData[gender][age].weight.high = parseFloat(row.w_high);
+
+                if (row.bmi_low != null) stdData[gender][age].bmi.low = parseFloat(row.bmi_low);
+                if (row.bmi_avg != null) stdData[gender][age].bmi.avg = parseFloat(row.bmi_avg);
+                if (row.bmi_high != null) stdData[gender][age].bmi.high = parseFloat(row.bmi_high);
+              }
+            });
+
+            localStorage.setItem('customKdcaData', JSON.stringify(stdData));
+            alert('질병청 표준 데이터가 업데이트되었습니다.');
+            e.target.value = '';
+            renderChart();
+          } catch (err) {
+            alert('질병청 CSV 파일 형식을 확인해주세요.');
+          }
+        }
+      });
+    }
+
+    function getProfile() {
+      const stored = localStorage.getItem('childProfile');
+      if (stored) return JSON.parse(stored);
+      
+      const defaultBirth = new Date();
+      defaultBirth.setFullYear(defaultBirth.getFullYear() - 9);
+      const defaultObj = { gender: '남', birthDate: defaultBirth.toISOString().substring(0, 10) };
+      localStorage.setItem('childProfile', JSON.stringify(defaultObj));
+      return defaultObj;
+    }
+
+    function getRecords() {
+      const stored = localStorage.getItem('growthRecords');
+      if (stored) return JSON.parse(stored);
+      
+      const today = new Date();
+      const d1 = new Date(today); d1.setMonth(d1.getMonth() - 4);
+      const d2 = new Date(today); d2.setMonth(d2.getMonth() - 2);
+      const d3 = new Date(today);
+
+      const sample = [
+        { date: d1.toISOString().substring(0, 10), height: 132.0, weight: 30.5, bmi: 17.5 },
+        { date: d2.toISOString().substring(0, 10), height: 133.2, weight: 31.2, bmi: 17.6 },
+        { date: d3.toISOString().substring(0, 10), height: 134.5, weight: 32.0, bmi: 17.7 }
+      ];
+      localStorage.setItem('growthRecords', JSON.stringify(sample));
+      return sample;
+    }
+
+    function calculateAge(birthDateStr, recordDateStr) {
+      if (!birthDateStr) return 9;
+      const birth = new Date(birthDateStr);
+      const record = new Date(recordDateStr);
+      let age = record.getFullYear() - birth.getFullYear();
+      const m = record.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && record.getDate() < birth.getDate())) {
+        age--;
+      }
+      if (age < 6) return 6;
+      if (age > 12) return 12;
+      return age;
+    }
+
     function updateProfileUI() {
-      const profileUI = document.getElementById('profile-ui');
-      if (!profileUI) return;
-      // 데이터 로드 및 UI 표시 로직
-      profileUI.innerHTML = `<p>성장 기록 관리 중...</p>`;
+      const profile = getProfile();
+      const display = document.getElementById('displayChildInfo');
+      const summary = document.getElementById('profileSummary');
+      
+      const todayStr = new Date().toISOString().substring(0, 10);
+      const currentAge = calculateAge(profile.birthDate, todayStr);
+      
+      display.textContent = `${profile.birthDate}생 (만 ${currentAge}세 / ${profile.gender}아)`;
+      summary.textContent = `${profile.gender}아 · 만 ${currentAge}세`;
     }
 
-    // 2. 히스토리 목록 렌더링
+    function toggleProfileModal() {
+      const modal = document.getElementById('profileModal');
+      modal.classList.toggle('hidden');
+      if (!modal.classList.contains('hidden')) {
+        const profile = getProfile();
+        document.getElementById('birthDate').value = profile.birthDate || '';
+        const genderRadios = document.getElementsByName('gender');
+        for (let r of genderRadios) {
+          if (r.value === profile.gender) r.checked = true;
+        }
+      }
+    }
+
+    function saveProfile() {
+      const birthDate = document.getElementById('birthDate').value;
+      const gender = document.querySelector('input[name="gender"]:checked').value;
+      if(!birthDate) return;
+      localStorage.setItem('childProfile', JSON.stringify({ birthDate, gender }));
+      toggleProfileModal();
+      renderAll();
+    }
+
+    function saveRecord(e) {
+      e.preventDefault();
+      const date = document.getElementById('recordDate').value;
+      const height = parseFloat(document.getElementById('recordHeight').value);
+      const weight = parseFloat(document.getElementById('recordWeight').value);
+
+      if (!date || !height || !weight) return;
+
+      const heightM = height / 100;
+      const bmi = parseFloat((weight / (heightM * heightM)).toFixed(1));
+
+      const records = getRecords();
+      const filtered = records.filter(r => r.date !== date);
+      filtered.push({ date, height, weight, bmi });
+      filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      localStorage.setItem('growthRecords', JSON.stringify(filtered));
+
+      document.getElementById('recordHeight').value = '';
+      document.getElementById('recordWeight').value = '';
+      renderAll();
+    }
+
+    function deleteRecord(date) {
+      const records = getRecords().filter(r => r.date !== date);
+      localStorage.setItem('growthRecords', JSON.stringify(records));
+      renderAll();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      ['height', 'weight', 'bmi'].forEach(t => {
+        const el = document.getElementById(`tab-${t}`);
+        if (t === tab) {
+          el.classList.add('active-tab');
+          el.classList.remove('text-slate-400');
+        } else {
+          el.classList.remove('active-tab');
+          el.classList.add('text-slate-400');
+        }
+      });
+      renderChart();
+    }
+
     function renderHistory() {
-      const historyList = document.getElementById('history-list');
-      if (!historyList) return;
-      // 저장된 기록 데이터 표시 로직
-      historyList.innerHTML = `<li>기록 내역이 표시됩니다.</li>`;
-    }
+      const records = getRecords().slice().reverse();
+      const listEl = document.getElementById('historyList');
+      document.getElementById('recordCount').textContent = `총 ${records.length}개`;
 
-    // 3. 성장/BMI 차트 렌더링 (첫 화면 레이아웃 미출력 이슈 해결)
-    function renderChart() {
-      const ctx = document.getElementById('growthChart');
-      if (!ctx) return;
-
-      // 기존 차트 객체가 있다면 파괴 후 다시 생성 (중복 렌더링 방지)
-      if (myChart) {
-        myChart.destroy();
+      if (records.length === 0) {
+        listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">기록된 데이터가 없습니다.</p>';
+        return;
       }
 
-      myChart = new Chart(ctx, {
+      listEl.innerHTML = records.map(r => `
+        <div class="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl text-xs hover:bg-slate-100 transition">
+          <div>
+            <span class="font-bold text-slate-700">${r.date}</span>
+            <div class="text-slate-500 mt-0.5">
+              키: <span class="font-semibold text-slate-700">${r.height}cm</span> | 
+              체중: <span class="font-semibold text-slate-700">${r.weight}kg</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 bg-indigo-50 text-indigo-600 font-bold rounded-lg border border-indigo-100">
+              BMI ${r.bmi}
+            </span>
+            <button onclick="deleteRecord('${r.date}')" class="text-slate-300 hover:text-red-500">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderChart() {
+      const records = getRecords();
+      const profile = getProfile();
+      const ctx = document.getElementById('growthChart').getContext('2d');
+
+      const labels = records.map(r => r.date);
+      const userValues = records.map(r => r[currentTab]);
+
+      const highValues = [];
+      const avgValues = [];
+      const lowValues = [];
+
+      records.forEach(r => {
+        const age = calculateAge(profile.birthDate, r.date);
+        const genderData = stdData[profile.gender] || stdData['남'];
+        const stdAgeItem = genderData[age] || genderData[9];
+        const item = stdAgeItem[currentTab] || { high: 0, avg: 0, low: 0 };
+
+        highValues.push(item.high);
+        avgValues.push(item.avg);
+        lowValues.push(item.low);
+      });
+
+      const titles = { height: '키 (cm)', weight: '체중 (kg)', bmi: 'BMI' };
+      const colors = { height: '#4F46E5', weight: '#0EA5E9', bmi: '#10B981' };
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: ['1월', '2월', '3월', '4월', '5월'],
-          datasets: [{
-            label: 'BMI 추이',
-            data: [16.2, 16.5, 16.3, 16.8, 17.0],
-            borderColor: '#4F46E5',
-            backgroundColor: 'rgba(79, 70, 229, 0.1)',
-            fill: true,
-            tension: 0.3
-          }]
+          labels: labels,
+          datasets: [
+            {
+              label: `내 아이 ${titles[currentTab]}`,
+              data: userValues,
+              borderColor: colors[currentTab],
+              backgroundColor: colors[currentTab],
+              borderWidth: 3.5,
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              pointBackgroundColor: colors[currentTab],
+              tension: 0.1,
+              order: 1
+            },
+            {
+              label: '상위 3% (97th)',
+              data: highValues,
+              borderColor: '#EF4444',
+              backgroundColor: '#EF4444',
+              borderWidth: 2,
+              borderDash: [4, 4],
+              pointRadius: 3,
+              tension: 0.1,
+              order: 2
+            },
+            {
+              label: '평균 (50th)',
+              data: avgValues,
+              borderColor: '#475569',
+              backgroundColor: '#475569',
+              borderWidth: 2,
+              borderDash: [6, 4],
+              pointRadius: 3,
+              tension: 0.1,
+              order: 3
+            },
+            {
+              label: '하위 3% (3rd)',
+              data: lowValues,
+              borderColor: '#D97706',
+              backgroundColor: '#D97706',
+              borderWidth: 2,
+              borderDash: [4, 4],
+              pointRadius: 3,
+              tension: 0.1,
+              order: 4
+            }
+          ]
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false, // 컨테이너 높이에 맞춤
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                boxWidth: 10,
+                font: { size: 11, weight: 'bold' },
+                padding: 12
+              }
+            },
+            tooltip: {
+              padding: 10,
+              titleFont: { size: 12, weight: 'bold' },
+              bodyFont: { size: 11 }
+            }
+          },
           scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 10 } }
+            },
             y: {
-              beginAtZero: false
+              grid: { color: '#F1F5F9' },
+              ticks: { font: { size: 10 } }
             }
           }
         }
       });
     }
 
-    // 전체 UI 렌더링 관리
+    // [수정 1] 첫 화면 렌더링 시 Canvas 크기 계산 오류 방지 (1프레임 지연)
     function renderAll() {
       updateProfileUI();
       renderHistory();
       
-      // Canvas 부모 크기 계산이 완료된 후 그리도록 1프레임 지연 (렌더링 씹힘 해결)
       requestAnimationFrame(() => {
         renderChart();
       });
     }
 
-    // DOM 구조가 완전히 준비되었을 때 안전하게 실행
+    // [수정 2] DOM 로드 완료 후 안정적으로 첫 실행
     document.addEventListener('DOMContentLoaded', () => {
       renderAll();
     });
 
-    // PWA 서비스 워커 등록 및 자동 업데이트 제어
+    // [수정 3] PWA 서비스 워커 등록 및 모바일 자동 업데이트 제어
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           console.log('SW Registered');
 
-          // 앱 실행 시마다 서버의 최신 sw.js 변경 여부 강제 확인
+          // 앱 실행 시 서버의 새 sw.js 감지 강제
           reg.update();
 
-          // 새로운 sw.js 버전 발견 시 자동 새로고침 진행
+          // 새 서비스 워커 설치 시 자동 새로고침 진행
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('새 버전으로 자동 업데이트되었습니다.');
+                console.log('새 버전으로 앱을 자동 업데이트합니다.');
                 window.location.reload();
               }
             });
@@ -185,4 +640,3 @@
   </script>
 </body>
 </html>
-
