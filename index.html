@@ -25,10 +25,17 @@
       border-bottom: 3px solid #4F46E5;
       font-weight: 700;
     }
+    /* 스크롤 감싸는 외부 컨테이너 */
+    .chart-scroll-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* 실제 차트가 그려지는 Canvas 컨테이너 */
     .chart-container {
       position: relative;
-      width: 100%;
       height: 340px;
+      min-width: 100%;
     }
   </style>
 </head>
@@ -52,7 +59,7 @@
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
           
-          <!-- 우상단 드롭다운 메뉴 (Export/Import -> 내보내기/가져오기 변경) -->
+          <!-- 우상단 드롭다운 메뉴 -->
           <div id="dropdownMenu" class="hidden absolute right-0 top-10 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-100 w-48 py-1 z-50 text-xs">
             <button onclick="exportUserCsv()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100">
               <i class="fa-solid fa-file-export text-indigo-500"></i> 내 기록 내보내기 (CSV)
@@ -118,9 +125,11 @@
         <button onclick="switchTab('bmi')" id="tab-bmi" class="pb-2 px-4 transition-all">BMI</button>
       </div>
 
-      <!-- Chart Canvas -->
-      <div class="chart-container">
-        <canvas id="growthChart"></canvas>
+      <!-- Chart Canvas Wrapper (가로 스크롤 가능 처리) -->
+      <div class="chart-scroll-wrapper" id="chartScrollWrapper">
+        <div class="chart-container" id="chartContainer">
+          <canvas id="growthChart"></canvas>
+        </div>
       </div>
       
       <div class="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600">
@@ -135,7 +144,7 @@
       </div>
     </div>
 
-    <!-- History List Card -->
+    <!-- History List Card (max-h-96 적용으로 10개 높이 확보) -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
       <div class="flex justify-between items-center">
         <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -143,7 +152,7 @@
         </h3>
         <span id="recordCount" class="text-xs text-slate-400">총 0개</span>
       </div>
-      <div id="historyList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+      <div id="historyList" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
     </div>
 
   </main>
@@ -358,15 +367,11 @@
       return sample;
     }
 
-    // 폼 입력 초기값 및 placeholder(힌트) 업데이트 함수
     function updateFormDefaults() {
-      // 1. 측정 날짜를 오늘 날짜로 셋팅
       document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
 
-      // 2. 가장 최근 기록을 찾아 키/체중 placeholder로 설정
       const records = getRecords();
       if (records.length > 0) {
-        // 날짜순 정렬 후 마지막 요소 가져오기
         const sorted = records.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
         const lastRecord = sorted[sorted.length - 1];
         
@@ -508,6 +513,8 @@
     function renderChart() {
       const records = getRecords();
       const profile = getProfile();
+      const chartContainer = document.getElementById('chartContainer');
+      const scrollWrapper = document.getElementById('chartScrollWrapper');
       const ctx = document.getElementById('growthChart').getContext('2d');
 
       const labels = records.map(r => r.date);
@@ -527,6 +534,24 @@
         avgValues.push(item.avg);
         lowValues.push(item.low);
       });
+
+      // -------------------------------------------------------------
+      // [동적 너비 계산] 전체 데이터의 연도 범위 파악 후 3년 초과 시 가로 너비 확장
+      // -------------------------------------------------------------
+      let totalYears = 1;
+      if (records.length > 1) {
+        const firstYear = new Date(records[0].date).getFullYear();
+        const lastYear = new Date(records[records.length - 1].date).getFullYear();
+        totalYears = Math.max(1, lastYear - firstYear + 1);
+      }
+
+      if (totalYears > 3) {
+        // 3년치를 화면 기본 너비(100%)로 보고, 전체 기간 비율만큼 너비를 늘림
+        const multiplier = totalYears / 3;
+        chartContainer.style.width = `${multiplier * 100}%`;
+      } else {
+        chartContainer.style.width = '100%';
+      }
 
       const titles = { height: '키 (cm)', weight: '체중 (kg)', bmi: 'BMI' };
       const colors = { height: '#4F46E5', weight: '#0EA5E9', bmi: '#10B981' };
@@ -620,12 +645,17 @@
           }
         }
       });
+
+      // 최신 기록(우측)이 기본적으로 보이도록 스크롤바를 맨 오른쪽으로 자동 이동
+      requestAnimationFrame(() => {
+        scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
+      });
     }
 
     function renderAll() {
       updateProfileUI();
       renderHistory();
-      updateFormDefaults(); // 입력 폼 기본값 및 placeholder 갱신
+      updateFormDefaults();
       
       requestAnimationFrame(() => {
         renderChart();
@@ -658,4 +688,3 @@
   </script>
 </body>
 </html>
-
