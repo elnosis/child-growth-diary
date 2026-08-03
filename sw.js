@@ -1,4 +1,4 @@
-const CACHE_NAME = 'growth-diary-v7'; // 코드를 수정할 때마다 v3, v4로 올려주세요.
+const CACHE_NAME = 'growth-diary-v8'; // 코드를 수정할 때마다 v3, v4로 올려주세요.
 const ASSETS = [
   './',
   './index.html',
