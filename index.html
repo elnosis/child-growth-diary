@@ -34,7 +34,7 @@
     /* 실제 차트가 그려지는 Canvas 컨테이너 */
     .chart-container {
       position: relative;
-      height: 340px;
+      height: 320px;
       min-width: 100%;
     }
   </style>
@@ -45,7 +45,7 @@
   <header class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 z-50">
     <div class="max-w-md mx-auto flex justify-between items-center relative">
       <h1 class="text-xl font-bold flex items-center gap-2">
-        <i class="fa-solid fa-chart-line"></i> 아이 성장 & BMI 다이어리
+        <i class="fa-solid fa-chart-line"></i> 성장 기록
       </h1>
       
       <div class="flex items-center gap-2">
@@ -125,26 +125,36 @@
         <button onclick="switchTab('bmi')" id="tab-bmi" class="pb-2 px-4 transition-all">BMI</button>
       </div>
 
-      <!-- Chart Canvas Wrapper (가로 스크롤 가능 처리) -->
+      <!-- Chart Canvas Wrapper (가로 스크롤 가능 영역) -->
       <div class="chart-scroll-wrapper" id="chartScrollWrapper">
         <div class="chart-container" id="chartContainer">
           <canvas id="growthChart"></canvas>
         </div>
       </div>
       
-      <div class="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600">
-        <p class="font-bold flex items-center gap-1 text-indigo-600">
-          <i class="fa-solid fa-circle-info"></i> 질병관리청 성장기준선 안내
-        </p>
-        <div class="grid grid-cols-3 gap-1 pt-1 text-center font-medium">
-          <span class="text-red-500 bg-red-50 py-1 rounded">🔴 상위 3% (97th)</span>
-          <span class="text-slate-600 bg-slate-200 py-1 rounded">⚪ 평균 50% (50th)</span>
-          <span class="text-amber-600 bg-amber-50 py-1 rounded">🟡 하위 3% (3rd)</span>
+      <!-- 하단 통합 범례 & 안내 박스 (스크롤 영역 밖 고정) -->
+      <div class="bg-slate-50 p-3 rounded-xl text-xs space-y-2 text-slate-600">
+        <div class="flex justify-between items-center border-b border-slate-200/60 pb-1.5">
+          <p class="font-bold flex items-center gap-1 text-slate-700">
+            <i class="fa-solid fa-circle-info text-indigo-500"></i> 성장 그래프 범례 안내
+          </p>
+          <span class="text-[10px] text-slate-400 font-normal">* 기록 점을 클릭하면 상세 비교 표시</span>
+        </div>
+        
+        <!-- 범례 목록 (내 아이 + 질병청 3개 기준선) -->
+        <div class="grid grid-cols-2 gap-1.5 pt-0.5 font-medium text-center">
+          <span id="myChildBadge" class="bg-indigo-50 text-indigo-700 py-1 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5">
+            <span id="myChildDot" class="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span>
+            <span id="myChildLabel">내 아이 키</span>
+          </span>
+          <span class="text-red-500 bg-red-50 py-1 px-2 rounded-lg flex items-center justify-center">🔴 상위 3% (97th)</span>
+          <span class="text-slate-600 bg-slate-200/70 py-1 px-2 rounded-lg flex items-center justify-center">⚪ 평균 50% (50th)</span>
+          <span class="text-amber-600 bg-amber-50 py-1 px-2 rounded-lg flex items-center justify-center">🟡 하위 3% (3rd)</span>
         </div>
       </div>
     </div>
 
-    <!-- History List Card (max-h-96 적용으로 10개 높이 확보) -->
+    <!-- History List Card -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 space-y-3">
       <div class="flex justify-between items-center">
         <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -535,9 +545,7 @@
         lowValues.push(item.low);
       });
 
-      // -------------------------------------------------------------
-      // [동적 너비 계산] 전체 데이터의 연도 범위 파악 후 3년 초과 시 가로 너비 확장
-      // -------------------------------------------------------------
+      // 가로 너비 확장 계산 (3년 초과 시)
       let totalYears = 1;
       if (records.length > 1) {
         const firstYear = new Date(records[0].date).getFullYear();
@@ -546,15 +554,18 @@
       }
 
       if (totalYears > 3) {
-        // 3년치를 화면 기본 너비(100%)로 보고, 전체 기간 비율만큼 너비를 늘림
         const multiplier = totalYears / 3;
         chartContainer.style.width = `${multiplier * 100}%`;
       } else {
         chartContainer.style.width = '100%';
       }
 
-      const titles = { height: '키 (cm)', weight: '체중 (kg)', bmi: 'BMI' };
+      const titles = { height: '키', weight: '체중', bmi: 'BMI' };
       const colors = { height: '#4F46E5', weight: '#0EA5E9', bmi: '#10B981' };
+
+      // 하단 고정 범례 내 '내 아이' 색상 및 텍스트 동적 업데이트
+      document.getElementById('myChildDot').style.backgroundColor = colors[currentTab];
+      document.getElementById('myChildLabel').textContent = `내 아이 ${titles[currentTab]}`;
 
       if (chart) chart.destroy();
 
@@ -580,20 +591,22 @@
               data: highValues,
               borderColor: '#EF4444',
               backgroundColor: '#EF4444',
-              borderWidth: 2,
+              borderWidth: 1.5,
               borderDash: [4, 4],
-              pointRadius: 3,
+              pointRadius: 0,
+              pointHoverRadius: 0,
               tension: 0.1,
               order: 2
             },
             {
               label: '평균 (50th)',
               data: avgValues,
-              borderColor: '#475569',
-              backgroundColor: '#475569',
-              borderWidth: 2,
-              borderDash: [6, 4],
-              pointRadius: 3,
+              borderColor: '#64748B',
+              backgroundColor: '#64748B',
+              borderWidth: 1.5,
+              borderDash: [5, 4],
+              pointRadius: 0,
+              pointHoverRadius: 0,
               tension: 0.1,
               order: 3
             },
@@ -602,9 +615,10 @@
               data: lowValues,
               borderColor: '#D97706',
               backgroundColor: '#D97706',
-              borderWidth: 2,
+              borderWidth: 1.5,
               borderDash: [4, 4],
-              pointRadius: 3,
+              pointRadius: 0,
+              pointHoverRadius: 0,
               tension: 0.1,
               order: 4
             }
@@ -613,24 +627,27 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          events: ['click'], // 'click'시에만 툴팁 감지
           interaction: {
-            mode: 'index',
-            intersect: false
+            mode: 'nearest',
+            intersect: true // 내 아이 점 클릭 시에만 감지
           },
           plugins: {
             legend: {
-              display: true,
-              position: 'top',
-              labels: {
-                boxWidth: 10,
-                font: { size: 11, weight: 'bold' },
-                padding: 12
-              }
+              display: false // Chart.js 내장 렌더링 범례 비활성화
             },
             tooltip: {
+              enabled: true,
+              mode: 'index',
+              intersect: false,
               padding: 10,
               titleFont: { size: 12, weight: 'bold' },
-              bodyFont: { size: 11 }
+              bodyFont: { size: 11 },
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.dataset.label}: ${context.parsed.y}`;
+                }
+              }
             }
           },
           scales: {
@@ -646,7 +663,7 @@
         }
       });
 
-      // 최신 기록(우측)이 기본적으로 보이도록 스크롤바를 맨 오른쪽으로 자동 이동
+      // 스크롤바 최신 위치로 이동
       requestAnimationFrame(() => {
         scrollWrapper.scrollLeft = scrollWrapper.scrollWidth;
       });
