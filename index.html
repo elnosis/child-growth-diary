@@ -138,14 +138,14 @@
           <p class="font-bold flex items-center gap-1 text-slate-700">
             <i class="fa-solid fa-circle-info text-indigo-500"></i> 성장 그래프 범례 안내
           </p>
-          <span class="text-[10px] text-slate-400 font-normal">* 기록 점을 클릭하면 상세 비교 표시</span>
+          <span class="text-[10px] text-slate-400 font-normal">* 월별 평균값 표시</span>
         </div>
         
         <!-- 범례 목록 (내 아이 + 질병청 3개 기준선) -->
         <div class="grid grid-cols-2 gap-1.5 pt-0.5 font-medium text-center">
           <span id="myChildBadge" class="bg-indigo-50 text-indigo-700 py-1 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5">
             <span id="myChildDot" class="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span>
-            <span id="myChildLabel">내 아이 키</span>
+            <span id="myChildLabel">내 아이 키 (월평균)</span>
           </span>
           <span class="text-red-500 bg-red-50 py-1 px-2 rounded-lg flex items-center justify-center">🔴 상위 3% (97th)</span>
           <span class="text-slate-600 bg-slate-200/70 py-1 px-2 rounded-lg flex items-center justify-center">⚪ 평균 50% (50th)</span>
@@ -377,6 +377,45 @@
       return sample;
     }
 
+    // 동일 월 데이터를 평균값으로 집계하는 함수
+    function aggregateMonthlyData(records) {
+      if (!records || records.length === 0) return [];
+
+      const monthlyMap = new Map();
+
+      records.forEach(r => {
+        const monthKey = r.date.substring(0, 7); // YYYY-MM
+        if (!monthlyMap.has(monthKey)) {
+          monthlyMap.set(monthKey, {
+            dates: [],
+            heights: [],
+            weights: [],
+            bmis: []
+          });
+        }
+        const group = monthlyMap.get(monthKey);
+        group.dates.push(r.date);
+        if (r.height) group.heights.push(r.height);
+        if (r.weight) group.weights.push(r.weight);
+        if (r.bmi) group.bmis.push(r.bmi);
+      });
+
+      const aggregated = [];
+      monthlyMap.forEach((group, monthKey) => {
+        const avg = (arr) => arr.length > 0 ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)) : null;
+
+        aggregated.push({
+          date: monthKey, // YYYY-MM
+          refDate: group.dates[group.dates.length - 1], // 나이 계산용 기준 날짜 (해당 월의 마지막 기록)
+          height: avg(group.heights),
+          weight: avg(group.weights),
+          bmi: avg(group.bmis)
+        });
+      });
+
+      return aggregated.sort((a, b) => a.date.localeCompare(b.date));
+    }
+
     function updateFormDefaults() {
       document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
 
@@ -522,20 +561,21 @@
 
     function renderChart() {
       const records = getRecords();
+      const monthlyRecords = aggregateMonthlyData(records); // 월별 평균 집계 적용
       const profile = getProfile();
       const chartContainer = document.getElementById('chartContainer');
       const scrollWrapper = document.getElementById('chartScrollWrapper');
       const ctx = document.getElementById('growthChart').getContext('2d');
 
-      const labels = records.map(r => r.date);
-      const userValues = records.map(r => r[currentTab]);
+      const labels = monthlyRecords.map(r => r.date);
+      const userValues = monthlyRecords.map(r => r[currentTab]);
 
       const highValues = [];
       const avgValues = [];
       const lowValues = [];
 
-      records.forEach(r => {
-        const age = calculateAge(profile.birthDate, r.date);
+      monthlyRecords.forEach(r => {
+        const age = calculateAge(profile.birthDate, r.refDate);
         const genderData = stdData[profile.gender] || stdData['남'];
         const stdAgeItem = genderData[age] || genderData[9];
         const item = stdAgeItem[currentTab] || { high: 0, avg: 0, low: 0 };
@@ -547,9 +587,9 @@
 
       // 가로 너비 확장 계산 (3년 초과 시)
       let totalYears = 1;
-      if (records.length > 1) {
-        const firstYear = new Date(records[0].date).getFullYear();
-        const lastYear = new Date(records[records.length - 1].date).getFullYear();
+      if (monthlyRecords.length > 1) {
+        const firstYear = parseInt(monthlyRecords[0].date.substring(0, 4));
+        const lastYear = parseInt(monthlyRecords[monthlyRecords.length - 1].date.substring(0, 4));
         totalYears = Math.max(1, lastYear - firstYear + 1);
       }
 
@@ -565,7 +605,7 @@
 
       // 하단 고정 범례 내 '내 아이' 색상 및 텍스트 동적 업데이트
       document.getElementById('myChildDot').style.backgroundColor = colors[currentTab];
-      document.getElementById('myChildLabel').textContent = `내 아이 ${titles[currentTab]}`;
+      document.getElementById('myChildLabel').textContent = `내 아이 ${titles[currentTab]} (월평균)`;
 
       if (chart) chart.destroy();
 
@@ -575,7 +615,7 @@
           labels: labels,
           datasets: [
             {
-              label: `내 아이 ${titles[currentTab]}`,
+              label: `내 아이 ${titles[currentTab]} (월평균)`,
               data: userValues,
               borderColor: colors[currentTab],
               backgroundColor: colors[currentTab],
