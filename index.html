@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- PapaParse CDN (CSV Import/Export 용) -->
+  <!-- PapaParse CDN (CSV 내보내기/가져오기 용) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,16 +52,16 @@
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
           
-          <!-- 우상단 드롭다운 메뉴 -->
+          <!-- 우상단 드롭다운 메뉴 (Export/Import -> 내보내기/가져오기 변경) -->
           <div id="dropdownMenu" class="hidden absolute right-0 top-10 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-100 w-48 py-1 z-50 text-xs">
             <button onclick="exportUserCsv()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100">
-              <i class="fa-solid fa-file-export text-indigo-500"></i> 내 기록 Export (CSV)
+              <i class="fa-solid fa-file-export text-indigo-500"></i> 내 기록 내보내기 (CSV)
             </button>
             <button onclick="document.getElementById('userCsvInput').click()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100">
-              <i class="fa-solid fa-file-import text-indigo-500"></i> 내 기록 Import (CSV)
+              <i class="fa-solid fa-file-import text-indigo-500"></i> 내 기록 가져오기 (CSV)
             </button>
             <button onclick="document.getElementById('kdcaCsvInput').click()" class="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2">
-              <i class="fa-solid fa-building-columns text-indigo-500"></i> 질병청 데이터 Import
+              <i class="fa-solid fa-building-columns text-indigo-500"></i> 질병청 데이터 가져오기
             </button>
           </div>
         </div>
@@ -201,7 +201,7 @@
       }
     };
 
-    // 커스텀 질병청 데이터가 있으면 로드
+    // 커스텀 질병청 데이터 로드
     const customKdca = localStorage.getItem('customKdcaData');
     if (customKdca) {
       try { stdData = JSON.parse(customKdca); } catch(e){}
@@ -209,8 +209,6 @@
 
     let currentTab = 'height';
     let chart = null;
-
-    document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
 
     // 우상단 메뉴 토글
     function toggleMenuModal(e) {
@@ -222,7 +220,7 @@
       document.getElementById('dropdownMenu').classList.add('hidden');
     });
 
-    // 1. 내 기록 Export (CSV)
+    // 1. 내 기록 내보내기 (CSV)
     function exportUserCsv() {
       const records = getRecords();
       if (records.length === 0) {
@@ -245,7 +243,7 @@
       document.body.removeChild(link);
     }
 
-    // 2. 내 기록 Import (CSV)
+    // 2. 내 기록 가져오기 (CSV)
     function importUserCsv(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -287,7 +285,7 @@
       });
     }
 
-    // 3. 질병청 데이터 Import (CSV)
+    // 3. 질병청 데이터 가져오기 (CSV)
     function importKdcaCsv(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -358,6 +356,30 @@
       ];
       localStorage.setItem('growthRecords', JSON.stringify(sample));
       return sample;
+    }
+
+    // 폼 입력 초기값 및 placeholder(힌트) 업데이트 함수
+    function updateFormDefaults() {
+      // 1. 측정 날짜를 오늘 날짜로 셋팅
+      document.getElementById('recordDate').value = new Date().toISOString().substring(0, 10);
+
+      // 2. 가장 최근 기록을 찾아 키/체중 placeholder로 설정
+      const records = getRecords();
+      if (records.length > 0) {
+        // 날짜순 정렬 후 마지막 요소 가져오기
+        const sorted = records.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+        const lastRecord = sorted[sorted.length - 1];
+        
+        if (lastRecord.height) {
+          document.getElementById('recordHeight').placeholder = `${lastRecord.height}`;
+        }
+        if (lastRecord.weight) {
+          document.getElementById('recordWeight').placeholder = `${lastRecord.weight}`;
+        }
+      } else {
+        document.getElementById('recordHeight').placeholder = "130.5";
+        document.getElementById('recordWeight').placeholder = "28.4";
+      }
     }
 
     function calculateAge(birthDateStr, recordDateStr) {
@@ -600,31 +622,27 @@
       });
     }
 
-    // [수정 1] 첫 화면 렌더링 시 Canvas 크기 계산 오류 방지 (1프레임 지연)
     function renderAll() {
       updateProfileUI();
       renderHistory();
+      updateFormDefaults(); // 입력 폼 기본값 및 placeholder 갱신
       
       requestAnimationFrame(() => {
         renderChart();
       });
     }
 
-    // [수정 2] DOM 로드 완료 후 안정적으로 첫 실행
     document.addEventListener('DOMContentLoaded', () => {
       renderAll();
     });
 
-    // [수정 3] PWA 서비스 워커 등록 및 모바일 자동 업데이트 제어
+    // PWA 서비스 워커 등록
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           console.log('SW Registered');
-
-          // 앱 실행 시 서버의 새 sw.js 감지 강제
           reg.update();
 
-          // 새 서비스 워커 설치 시 자동 새로고침 진행
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             newWorker.addEventListener('statechange', () => {
@@ -640,3 +658,4 @@
   </script>
 </body>
 </html>
+
