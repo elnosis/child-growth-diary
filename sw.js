@@ -1,4 +1,7 @@
-const CACHE_NAME = 'growth-diary-v12'; // 코드를 수정할 때마다 v3, v4로 올려주세요.
+// 버전 및 캐시 명칭 정의
+const APP_VERSION = 'v12'; // 코드를 수정할 때마다 v13, v14로 올려주세요.
+const CACHE_NAME = `growth-diary-${APP_VERSION}`; 
+
 const ASSETS = [
   './',
   './index.html',
@@ -35,4 +38,13 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((res) => res || fetch(e.request))
   );
+});
+
+// 4. 메인 스크립트로부터 버전 요청을 받았을 때 응답
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'GET_VERSION') {
+    if (e.ports && e.ports[0]) {
+      e.ports[0].postMessage({ version: APP_VERSION });
+    }
+  }
 });
