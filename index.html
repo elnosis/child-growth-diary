@@ -8,11 +8,8 @@
   <meta name="theme-color" content="#4F46E5">
   <link rel="apple-touch-icon" href="icon-192.png">
   
-  <!-- Chart.js & Date Adapter CDN -->
+  <!-- Chart.js 및 안정된 CDN 로드 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  
   <!-- PapaParse CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <!-- Tailwind CSS CDN -->
@@ -129,7 +126,7 @@
         <button onclick="switchTab('bmi')" id="tab-bmi" class="pb-2 px-4 transition-all">BMI</button>
       </div>
 
-      <!-- 줌 인/아웃 레벨 컨트롤 버튼 (월 / 분기 / 반기 / 년) -->
+      <!-- 줌 레벨 컨트롤 버튼 -->
       <div class="flex justify-between items-center bg-slate-50 p-1.5 rounded-xl text-xs font-semibold text-slate-500">
         <span class="pl-2 text-[11px] text-slate-400"><i class="fa-solid fa-magnifying-glass font-bold"></i> 보기 단위:</span>
         <div class="flex gap-1">
@@ -373,8 +370,8 @@
       if (stored) return JSON.parse(stored);
       
       const today = new Date();
-      const d1 = new Date(today); d1.setMonth(d1.getMonth() - 8);
-      const d2 = new Date(today); d2.setMonth(d2.getMonth() - 5);
+      const d1 = new Date(today); d1.setMonth(d1.getMonth() - 6);
+      const d2 = new Date(today); d2.setMonth(d2.getMonth() - 3);
       const d3 = new Date(today);
 
       const sample = [
@@ -386,64 +383,61 @@
       return sample;
     }
 
-    // 날짜를 선택한 Zoom Level 기반 Group Key로 변환
     function getGroupKey(dateStr, level) {
       const d = new Date(dateStr);
       const year = d.getFullYear();
-      const month = d.getMonth() + 1; // 1-12
+      const month = d.getMonth() + 1;
 
       if (level === 'year') {
-        return `${year}-01-01`;
+        return `${year}년`;
       } else if (level === 'half') {
-        const halfMonth = month <= 6 ? '01' : '07';
-        return `${year}-${halfMonth}-01`;
+        const half = month <= 6 ? '1반기' : '2반기';
+        return `${year}년 ${half}`;
       } else if (level === 'quarter') {
-        const qMonth = String(Math.floor((month - 1) / 3) * 3 + 1).padStart(2, '0');
-        return `${year}-${qMonth}-01`;
+        const q = Math.floor((month - 1) / 3) + 1;
+        return `${year}년 ${q}분기`;
       } else {
-        // month
         const mStr = String(month).padStart(2, '0');
-        return `${year}-${mStr}-01`;
+        return `${year}-${mStr}`;
       }
     }
 
-    // 선택된 줌 레벨에 따라 다음 시간 간격을 구함
-    function addStep(date, level) {
-      const d = new Date(date);
+    function addStep(d, level) {
+      const date = new Date(d);
       if (level === 'year') {
-        d.setFullYear(d.getFullYear() + 1);
+        date.setFullYear(date.getFullYear() + 1);
       } else if (level === 'half') {
-        d.setMonth(d.getMonth() + 6);
+        date.setMonth(date.getMonth() + 6);
       } else if (level === 'quarter') {
-        d.setMonth(d.getMonth() + 3);
+        date.setMonth(date.getMonth() + 3);
       } else {
-        d.setMonth(d.getMonth() + 1);
+        date.setMonth(date.getMonth() + 1);
       }
-      return d;
+      return date;
     }
 
-    // 데이터가 없는 기간까지 포함하여 연속된 시간 축 데이터 및 집계 생성
     function processTimelineData(records, level) {
       if (!records || records.length === 0) return [];
 
       const sorted = records.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
       
-      // 1. 레벨별 그룹핑 및 평균 계산
       const map = new Map();
       sorted.forEach(r => {
         const key = getGroupKey(r.date, level);
         if (!map.has(key)) {
-          map.set(key, { heights: [], weights: [], bmis: [] });
+          map.set(key, { heights: [], weights: [], bmis: [], refDate: r.date });
         }
         const g = map.get(key);
         if (r.height) g.heights.push(r.height);
-        if (r.weight) g.weight.push(r.weight);
+        if (r.weight) g.weights.push(r.weight);
         if (r.bmi) g.bmis.push(r.bmi);
+        g.refDate = r.date;
       });
 
-      // 2. 연속된 날짜 타임라인 생성 (시작점 ~ 종료점)
-      const startDate = new Date(getGroupKey(sorted[0].date, level));
-      const endDate = new Date(getGroupKey(sorted[sorted.length - 1].date, level));
+      let startDate = new Date(sorted[0].date);
+      let endDate = new Date(sorted[sorted.length - 1].date);
+      startDate.setDate(1);
+      endDate.setDate(1);
 
       const timeline = [];
       let curr = new Date(startDate);
@@ -451,15 +445,19 @@
       const avg = (arr) => arr && arr.length > 0 ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1)) : null;
 
       while (curr <= endDate) {
-        const key = curr.toISOString().substring(0, 10);
-        const g = map.get(key);
+        const dateStr = curr.toISOString().substring(0, 10);
+        const key = getGroupKey(dateStr, level);
 
-        timeline.push({
-          x: key,
-          height: g ? avg(g.heights) : null,
-          weight: g ? avg(g.weights) : null,
-          bmi: g ? avg(g.bmis) : null
-        });
+        if (!timeline.some(t => t.label === key)) {
+          const g = map.get(key);
+          timeline.push({
+            label: key,
+            refDate: g ? g.refDate : dateStr,
+            height: g ? avg(g.heights) : null,
+            weight: g ? avg(g.weights) : null,
+            bmi: g ? avg(g.bmis) : null
+          });
+        }
 
         curr = addStep(curr, level);
       }
@@ -635,29 +633,26 @@
       const scrollWrapper = document.getElementById('chartScrollWrapper');
       const ctx = document.getElementById('growthChart').getContext('2d');
 
-      const userDataset = timelineData.map(item => ({
-        x: item.x,
-        y: item[currentTab]
-      }));
+      const labels = timelineData.map(item => item.label);
+      const userValues = timelineData.map(item => item[currentTab]);
 
-      const highDataset = [];
-      const avgDataset = [];
-      const lowDataset = [];
+      const highValues = [];
+      const avgValues = [];
+      const lowValues = [];
 
       timelineData.forEach(item => {
-        const age = calculateAge(profile.birthDate, item.x);
+        const age = calculateAge(profile.birthDate, item.refDate);
         const genderData = stdData[profile.gender] || stdData['남'];
         const stdAgeItem = genderData[age] || genderData[9];
         const std = stdAgeItem[currentTab] || { high: 0, avg: 0, low: 0 };
 
-        highDataset.push({ x: item.x, y: std.high });
-        avgDataset.push({ x: item.x, y: std.avg });
-        lowDataset.push({ x: item.x, y: std.low });
+        highValues.push(std.high);
+        avgValues.push(std.avg);
+        lowValues.push(std.low);
       });
 
-      // 스크롤 폭 계산 (포인트 수에 따라 가로 확장)
-      if (timelineData.length > 12) {
-        const widthPercent = Math.max(100, (timelineData.length / 12) * 100);
+      if (timelineData.length > 10) {
+        const widthPercent = Math.max(100, (timelineData.length / 10) * 100);
         chartContainer.style.width = `${widthPercent}%`;
       } else {
         chartContainer.style.width = '100%';
@@ -671,33 +666,26 @@
 
       if (chart) chart.destroy();
 
-      // time scale unit 매핑
-      const timeUnitMap = {
-        month: 'month',
-        quarter: 'quarter',
-        half: 'quarter', // 6개월 단위
-        year: 'year'
-      };
-
       chart = new Chart(ctx, {
         type: 'line',
         data: {
+          labels: labels,
           datasets: [
             {
               label: `내 아이 ${titles[currentTab]}`,
-              data: userDataset,
+              data: userValues,
               borderColor: colors[currentTab],
               backgroundColor: colors[currentTab],
               borderWidth: 3.5,
               pointRadius: 6,
               pointHoverRadius: 8,
-              spanGaps: false, // 측정 데이터가 없는 달은 선 연결 끊음 (점 표시 없음)
+              spanGaps: false, // 측정하지 않은 기간은 라인이 끊어지도록 처리
               tension: 0.1,
               order: 1
             },
             {
               label: '상위 3% (97th)',
-              data: highDataset,
+              data: highValues,
               borderColor: '#EF4444',
               backgroundColor: '#EF4444',
               borderWidth: 1.5,
@@ -708,7 +696,7 @@
             },
             {
               label: '평균 (50th)',
-              data: avgDataset,
+              data: avgValues,
               borderColor: '#64748B',
               backgroundColor: '#64748B',
               borderWidth: 1.5,
@@ -719,7 +707,7 @@
             },
             {
               label: '하위 3% (3rd)',
-              data: lowDataset,
+              data: lowValues,
               borderColor: '#D97706',
               backgroundColor: '#D97706',
               borderWidth: 1.5,
@@ -742,10 +730,6 @@
             tooltip: {
               enabled: true,
               callbacks: {
-                title: function(context) {
-                  const dateVal = context[0].raw.x;
-                  return dateVal ? dateVal.substring(0, 7) : '';
-                },
                 label: function(context) {
                   if (context.parsed.y === null) return null;
                   return ` ${context.dataset.label}: ${context.parsed.y}`;
@@ -755,15 +739,6 @@
           },
           scales: {
             x: {
-              type: 'time',
-              time: {
-                unit: timeUnitMap[zoomLevel],
-                displayFormats: {
-                  month: 'yy년 M월',
-                  quarter: 'yy년 M월',
-                  year: 'yyyy년'
-                }
-              },
               grid: { display: false },
               ticks: { font: { size: 10 } }
             },
