@@ -54,7 +54,7 @@
           <i class="fa-solid fa-user-gear"></i> <span id="profileSummary">프로필 설정</span>
         </button>
 
-        <!-- sw.js에서 가져온 버전 배지 (삼점 메뉴 바로 왼쪽) -->
+        <!-- sw.js에서 가져온 버전 배지 (v1.0.0 출력) -->
         <span id="appVersionBadge" class="text-[10px] font-mono bg-indigo-800 text-indigo-200 px-2 py-1 rounded-full border border-indigo-500/50">
           v--
         </span>
@@ -775,21 +775,20 @@
     });
 
     // -------------------------------------------------------------
-    // 서비스 워커 버전 연동 로직 (캐시 우회 및 자동 파싱 지원)
+    // sw.js (v1.0.0 / growth-app) 동적 연동 스크립트
     // -------------------------------------------------------------
     async function updateAppVersionUI() {
       const badge = document.getElementById('appVersionBadge');
       if (!badge) return;
 
       try {
-        // 캐시 방지를 위한 타임스탬프 쿼리
         const response = await fetch('./sw.js?t=' + Date.now(), { cache: 'no-store' });
         const text = await response.text();
 
-        // APP_VERSION 또는 CACHE_NAME 정규식 파싱
+        // APP_VERSION 또는 growth-app-vX.X.X 패턴 추출
         const match = text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/) || 
-                      text.match(/growth-diary-(v\d+)/) ||
-                      text.match(/['"]growth-diary-(v[^'"]+)['"]/);
+                      text.match(/growth-app-(v[\d\.]+)/) ||
+                      text.match(/['"]growth-app-(v[^'"]+)['"]/);
 
         if (match && match[1]) {
           badge.textContent = match[1];
@@ -801,7 +800,6 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // 즉시 UI 업데이트
         updateAppVersionUI();
 
         navigator.serviceWorker.register('./sw.js').then((reg) => {
