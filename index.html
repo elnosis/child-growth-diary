@@ -54,7 +54,7 @@
           <i class="fa-solid fa-user-gear"></i> <span id="profileSummary">프로필 설정</span>
         </button>
 
-        <!-- sw.js에서 가져온 버전이 표시될 위치 (삼점 메뉴 왼쪽) -->
+        <!-- sw.js에서 가져온 버전 배지 (삼점 메뉴 바로 왼쪽) -->
         <span id="appVersionBadge" class="text-[10px] font-mono bg-indigo-800 text-indigo-200 px-2 py-1 rounded-full border border-indigo-500/50">
           v--
         </span>
@@ -774,60 +774,65 @@
       renderAll();
     });
 
-    // sw.js 파일에서 버전 정보 파싱 (fallback용)
-    async function fetchVersionFromSwFile() {
+    // -------------------------------------------------------------
+    // 서비스 워커 버전 연동 로직 (캐시 우회 및 자동 파싱 지원)
+    // -------------------------------------------------------------
+    async function updateAppVersionUI() {
+      const badge = document.getElementById('appVersionBadge');
+      if (!badge) return;
+
       try {
-        const response = await fetch('./sw.js');
+        // 캐시 방지를 위한 타임스탬프 쿼리
+        const response = await fetch('./sw.js?t=' + Date.now(), { cache: 'no-store' });
         const text = await response.text();
-        const match = text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+
+        // APP_VERSION 또는 CACHE_NAME 정규식 파싱
+        const match = text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/) || 
+                      text.match(/growth-diary-(v\d+)/) ||
+                      text.match(/['"]growth-diary-(v[^'"]+)['"]/);
+
         if (match && match[1]) {
-          document.getElementById('appVersionBadge').textContent = match[1];
+          badge.textContent = match[1];
         }
       } catch (err) {
-        console.error('sw.js 파일 파싱 실패:', err);
+        console.error('sw.js 버전 파싱 실패:', err);
       }
     }
 
-    // 서비스 워커 등록 및 sw.js로부터 버전 수신
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
+        // 즉시 UI 업데이트
+        updateAppVersionUI();
+
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           reg.update();
 
-          // 활성화된 워커에게 postMessage로 버전 요청
-          const getVersionFromWorker = (worker) => {
-            if (!worker) return;
+          if (reg.active) {
             const channel = new MessageChannel();
             channel.port1.onmessage = (event) => {
               if (event.data && event.data.version) {
                 document.getElementById('appVersionBadge').textContent = event.data.version;
               }
             };
-            worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
-          };
-
-          if (reg.active) {
-            getVersionFromWorker(reg.active);
-          } else {
-            // 아직 등록 과정 중인 경우 스크립트 파일 직접 파싱
-            fetchVersionFromSwFile();
+            reg.active.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
           }
 
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                window.location.reload();
-              }
-            });
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  window.location.reload();
+                }
+              });
+            }
           });
-        }).catch(err => {
-          console.log('SW Fail', err);
-          fetchVersionFromSwFile();
+        }).catch((err) => {
+          console.error('서비스 워커 등록 실패:', err);
         });
       });
     } else {
-      fetchVersionFromSwFile();
+      window.addEventListener('load', updateAppVersionUI);
     }
   </script>
 </body>
