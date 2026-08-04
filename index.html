@@ -8,11 +8,9 @@
   <meta name="theme-color" content="#4F46E5">
   <link rel="apple-touch-icon" href="icon-192.png">
   
-  <!-- Chart.js 및 안정된 CDN 로드 -->
+  <!-- Chart.js 및 외부 라이브러리 CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- PapaParse CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <style>
@@ -150,7 +148,7 @@
           <p class="font-bold flex items-center gap-1 text-slate-700">
             <i class="fa-solid fa-circle-info text-indigo-500"></i> 성장 그래프 범례 안내
           </p>
-          <span class="text-[10px] text-slate-400 font-normal" id="zoomInfoText">* 선택 기간 평균값 표시</span>
+          <span class="text-[10px] text-slate-400 font-normal" id="zoomInfoText">* 월별 평균값 표시</span>
         </div>
         
         <div class="grid grid-cols-2 gap-1.5 pt-0.5 font-medium text-center">
@@ -679,7 +677,7 @@
               borderWidth: 3.5,
               pointRadius: 6,
               pointHoverRadius: 8,
-              spanGaps: false, // 측정하지 않은 기간은 라인이 끊어지도록 처리
+              spanGaps: true, // 중간 데이터가 없어도 선으로 이어서 처리
               tension: 0.1,
               order: 1
             },
@@ -692,6 +690,7 @@
               borderDash: [4, 4],
               pointRadius: 0,
               tension: 0.1,
+              spanGaps: true,
               order: 2
             },
             {
@@ -703,6 +702,7 @@
               borderDash: [5, 4],
               pointRadius: 0,
               tension: 0.1,
+              spanGaps: true,
               order: 3
             },
             {
@@ -714,6 +714,7 @@
               borderDash: [4, 4],
               pointRadius: 0,
               tension: 0.1,
+              spanGaps: true,
               order: 4
             }
           ]
