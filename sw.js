@@ -1,5 +1,5 @@
-// 버전 및 캐시 명칭 정의
-const APP_VERSION = 'v13'; // 코드를 수정할 때마다 v13, v14로 올려주세요.
+// 상단 버전 수정 시 메인 화면 버전도 자동으로 업데이트됩니다.
+const APP_VERSION = 'v14'; 
 const CACHE_NAME = `growth-diary-${APP_VERSION}`; 
 
 const ASSETS = [
