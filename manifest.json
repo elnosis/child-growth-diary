@@ -1,11 +1,12 @@
 {
-  "name": "성장 기록",
-  "short_name": "닌텐도를 위하여",
+  "name": "성장 기록 - Growth App",
+  "short_name": "성장기록",
+  "description": "우리 아이 성장(키, 체중, BMI) 추적 및 표준 데이터 비교 앱",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#F9FAFB",
   "theme_color": "#4F46E5",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon-192.png",
