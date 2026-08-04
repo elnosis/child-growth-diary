@@ -343,32 +343,51 @@
         complete: function(results) {
           try {
             results.data.forEach(row => {
-              const gender = String(row.gender || row.Gender || '남').trim();
-              const age = parseInt(row.age || row.Age);
+              // 성별 매핑 (성별, gender, Gender 지원)
+              const gender = String(row['성별'] || row.gender || row.Gender || '남').trim();
+              
+              // 나이 매핑 (만_연령, age, Age 지원)
+              let age = row['만_연령'] !== undefined ? parseInt(row['만_연령']) : parseInt(row.age || row.Age);
+              if (isNaN(age) && row['연령_개월']) {
+                age = Math.floor(parseInt(row['연령_개월']) / 12);
+              }
 
               if (gender && !isNaN(age)) {
                 if (!stdData[gender]) stdData[gender] = {};
                 if (!stdData[gender][age]) stdData[gender][age] = { height: {}, weight: {}, bmi: {} };
 
-                if (row.h_low != null) stdData[gender][age].height.low = parseFloat(row.h_low);
-                if (row.h_avg != null) stdData[gender][age].height.avg = parseFloat(row.h_avg);
-                if (row.h_high != null) stdData[gender][age].height.high = parseFloat(row.h_high);
+                // 키 (Height) 매핑
+                const hLow = row['키_3percentile_cm'] ?? row.h_low;
+                const hAvg = row['키_50percentile_평균_cm'] ?? row.h_avg;
+                const hHigh = row['키_97percentile_cm'] ?? row.h_high;
+                if (hLow != null) stdData[gender][age].height.low = parseFloat(hLow);
+                if (hAvg != null) stdData[gender][age].height.avg = parseFloat(hAvg);
+                if (hHigh != null) stdData[gender][age].height.high = parseFloat(hHigh);
 
-                if (row.w_low != null) stdData[gender][age].weight.low = parseFloat(row.w_low);
-                if (row.w_avg != null) stdData[gender][age].weight.avg = parseFloat(row.w_avg);
-                if (row.w_high != null) stdData[gender][age].weight.high = parseFloat(row.w_high);
+                // 체중 (Weight) 매핑
+                const wLow = row['체중_3percentile_kg'] ?? row.w_low;
+                const wAvg = row['체중_50percentile_평균_kg'] ?? row.w_avg;
+                const wHigh = row['체중_97percentile_kg'] ?? row.w_high;
+                if (wLow != null) stdData[gender][age].weight.low = parseFloat(wLow);
+                if (wAvg != null) stdData[gender][age].weight.avg = parseFloat(wAvg);
+                if (wHigh != null) stdData[gender][age].weight.high = parseFloat(wHigh);
 
-                if (row.bmi_low != null) stdData[gender][age].bmi.low = parseFloat(row.bmi_low);
-                if (row.bmi_avg != null) stdData[gender][age].bmi.avg = parseFloat(row.bmi_avg);
-                if (row.bmi_high != null) stdData[gender][age].bmi.high = parseFloat(row.bmi_high);
+                // BMI 매핑
+                const bmiLow = row['BMI_3percentile'] ?? row.bmi_low;
+                const bmiAvg = row['BMI_50percentile_평균'] ?? row.bmi_avg;
+                const bmiHigh = row['BMI_97percentile'] ?? row.bmi_high;
+                if (bmiLow != null) stdData[gender][age].bmi.low = parseFloat(bmiLow);
+                if (bmiAvg != null) stdData[gender][age].bmi.avg = parseFloat(bmiAvg);
+                if (bmiHigh != null) stdData[gender][age].bmi.high = parseFloat(bmiHigh);
               }
             });
 
             localStorage.setItem('customKdcaData', JSON.stringify(stdData));
-            alert('질병청 표준 데이터가 업데이트되었습니다.');
+            alert('질병청 표준 데이터가 성공적으로 업데이트되었습니다.');
             e.target.value = '';
             renderChart();
           } catch (err) {
+            console.error(err);
             alert('질병청 CSV 파일 형식을 확인해주세요.');
           }
         }
@@ -516,7 +535,7 @@
         age--;
       }
       if (age < 6) return 6;
-      if (age > 12) return 12;
+      if (age > 15) return 15;
       return age;
     }
 
@@ -663,7 +682,7 @@
         const age = calculateAge(profile.birthDate, item.refDate);
         const genderData = stdData[profile.gender] || stdData['남'];
         const stdAgeItem = genderData[age] || genderData[9];
-        const std = stdAgeItem[currentTab] || { high: 0, avg: 0, low: 0 };
+        const std = stdAgeItem ? (stdAgeItem[currentTab] || { high: 0, avg: 0, low: 0 }) : { high: 0, avg: 0, low: 0 };
 
         highValues.push(std.high);
         avgValues.push(std.avg);
