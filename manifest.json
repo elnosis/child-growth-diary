@@ -1,5 +1,5 @@
 {
-  "name": "성장 기록 - Growth App",
+  "name": "닌텐도를 위하여",
   "short_name": "성장기록",
   "description": "우리 아이 성장(키, 체중, BMI) 추적 및 표준 데이터 비교 앱",
   "start_url": "./index.html",
